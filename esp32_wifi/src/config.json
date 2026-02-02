@@ -1,0 +1,6 @@
+{
+    "basic_write_pin_nums": [],
+    "pwm_write_pin_nums": [14, 25, 26],
+    "basic_read_pin_nums": [],
+    "adc_read_pin_nums": [32, 35]
+}
