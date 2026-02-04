@@ -129,13 +129,14 @@ func main() {
 		// Write "hello" to the characteristic
 		fmt.Println("✍️  Writing \"hello\" to characteristic...\n")
 
-		message := []byte("{\"pin_writes\": [{\"pin_num\": 14, \"state\": 0}]}")
-		fmt.Println(len(message))
-		_, err = targetChar.Write(message)
-		if err != nil {
-			fmt.Printf("❌ Failed to write: %v\n", err)
-			os.Exit(1)
-		}
+	message := []byte("{\"pin_writes\": [{\"pin_num\": 14, \"state\": 100}]}")
+	fmt.Println(len(message))
+	_, err = writeCharacteristic(targetChar, message)
+	if err != nil {
+		fmt.Printf("❌ Failed to write: %v\n", err)
+		device.Disconnect()
+		os.Exit(1)
+	}
 		fmt.Printf("✅ Wrote: \"hello\" (%v)\n", message)
 		fmt.Println("🔌 Disconnecting...")
 
