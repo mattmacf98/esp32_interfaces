@@ -1,4 +1,5 @@
 {
+    "bluetooth_name": "RUSTYESP32",
     "basic_write_pin_nums": [14],
     "pwm_write_pin_nums": [],
     "basic_read_pin_nums": [],

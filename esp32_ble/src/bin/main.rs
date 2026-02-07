@@ -18,7 +18,6 @@ use esp_hal::gpio::{DriveMode, Input, InputConfig, Output, OutputConfig};
 use esp_hal::ledc::channel::ChannelIFace;
 use esp_hal::ledc::timer::TimerIFace;
 use esp_hal::ledc::{HighSpeed, LSGlobalClkSource, Ledc, LowSpeed, channel, timer};
-use esp_hal::rng::Rng;
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
 use esp_println as _;
@@ -45,6 +44,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 #[derive(serde::Deserialize)]
 struct Config {
+    bluetooth_name: String,
     basic_write_pin_nums: Vec<u8>,
     pwm_write_pin_nums: Vec<u8>,
     basic_read_pin_nums: Vec<u8>,
@@ -80,6 +80,9 @@ async fn main(spawner: Spawner) -> ! {
     let pwm_write_pin_nums = config.pwm_write_pin_nums;
     let basic_read_pin_nums = config.basic_read_pin_nums;
     let adc_read_pin_nums = config.adc_read_pin_nums;
+    let bluetooth_name = config.bluetooth_name;
+
+    // info!("Bluetooth name: {}", bluetooth_name);
 
     // Wrap peripherals in Option so we can take them once in the loop
     let mut gpio14 = Some(peripherals.GPIO14);
@@ -231,7 +234,7 @@ async fn main(spawner: Spawner) -> ! {
         adc_config,
     ));
 
-    ble::run(ble_controller).await;
+    ble::run(ble_controller, &bluetooth_name).await;
 
     let mut loop_count = 0;
     loop {

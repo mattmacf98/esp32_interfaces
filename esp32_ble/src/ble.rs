@@ -59,7 +59,7 @@ struct PinService {
 
 /// Run the BLE stack.
 ///
-pub async fn run<C>(controller: C)
+pub async fn run<C>(controller: C, bluetooth_name: &str)
 where
     C: Controller,
 {
@@ -79,14 +79,14 @@ where
 
     info!("Starting advertising and GATT service");
     let server = Server::new_with_config(GapConfig::Peripheral(PeripheralConfig {
-        name: "implRust",
+        name: bluetooth_name,
         appearance: &appearance::power_device::GENERIC_POWER_DEVICE,
     }))
     .unwrap();
 
     let _ = join(ble_task(runner), async {
         loop {
-            match advertise("impl Rust", &mut peripheral, &server).await {
+            match advertise(bluetooth_name, &mut peripheral, &server).await {
                 Ok(conn) => {
                     // set up tasks when the connection is established to a central, so they don't run when no one is connected.
                     let a = gatt_events_task(&server, &conn);
