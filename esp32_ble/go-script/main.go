@@ -94,58 +94,100 @@ func main() {
 
 		fmt.Printf("📋 Found %d service(s)\n\n", len(services))
 
-		// Target characteristic UUID
-		targetUUID, err := bluetooth.ParseUUID("c79b2ca7-f39d-4060-8168-816fa26737b7")
+		// Target characteristic UUID (ADC data output)
+		// Pin data output: 13c0ef83-09bd-4767-97cb-ee46224ae6db
+		// Pin data input (write): c79b2ca7-f39d-4060-8168-816fa26737b7
+		// ADC data output: 01037594-1bbb-4490-aa4d-f6d333b42e16
+		targetUUID, err := bluetooth.ParseUUID("01037594-1bbb-4490-aa4d-f6d333b42e16")
 		if err != nil {
 			fmt.Printf("❌ Invalid UUID: %v\n", err)
 			os.Exit(1)
 		}
 
-		// Find the target characteristic
+		// Discover ALL characteristics (nil = no filter); some stacks don't return
+		// all characteristics when filtering by UUID, so we discover all and find by UUID.
 		var targetChar bluetooth.DeviceCharacteristic
 		found := false
 
-		fmt.Println("🔍 Searching for target characteristic...")
+		fmt.Println("🔍 Discovering all characteristics...")
 		for _, service := range services {
-			chars, err := service.DiscoverCharacteristics([]bluetooth.UUID{targetUUID})
+			chars, err := service.DiscoverCharacteristics(nil)
 			if err != nil {
+				fmt.Printf("⚠️  DiscoverCharacteristics error for service %s: %v\n", service.UUID().String(), err)
 				continue
 			}
-
-			if len(chars) > 0 {
-				targetChar = chars[0]
-				found = true
-				fmt.Printf("✅ Found characteristic: %s\n", targetUUID.String())
-				fmt.Printf("📍 In service: %s\n\n", service.UUID().String())
-				break
+			fmt.Printf("   Service %s: %d characteristic(s)\n", service.UUID().String(), len(chars))
+			for _, c := range chars {
+				cu := c.UUID()
+				fmt.Printf("      - %s\n", cu.String())
+				if cu.String() == targetUUID.String() {
+					targetChar = c
+					found = true
+				}
 			}
 		}
 
 		if !found {
-			fmt.Printf("❌ Characteristic %s not found\n", targetUUID.String())
+			fmt.Printf("\n❌ Characteristic %s not found (see list above for what the device exposes)\n", targetUUID.String())
 			os.Exit(1)
 		}
+		fmt.Printf("\n✅ Found target characteristic: %s\n\n", targetUUID.String())
 
-		// Write "hello" to the characteristic
-		fmt.Println("✍️  Writing \"hello\" to characteristic...\n")
-
-	message := []byte("{\"pin_writes\": [{\"pin_num\": 14, \"state\": 100}]}")
-	fmt.Println(len(message))
-	_, err = writeCharacteristic(targetChar, message)
-	if err != nil {
-		fmt.Printf("❌ Failed to write: %v\n", err)
-		device.Disconnect()
-		os.Exit(1)
-	}
-		fmt.Printf("✅ Wrote: \"hello\" (%v)\n", message)
-		fmt.Println("🔌 Disconnecting...")
-
-		err = device.Disconnect()
+		// ADC DATA OUTPUT
+		buffer := make([]byte, 1024)
+		readValue, err := targetChar.Read(buffer)
 		if err != nil {
-			fmt.Printf("⚠️  Disconnect warning: %v\n", err)
+			fmt.Printf("❌ Failed to read: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Read value: %v\n", readValue)
+		fmt.Printf("✅ Read value: %v\n", buffer[:readValue])
+		numPins := buffer[0]
+		for i := 0; i < int(numPins); i++ {
+			pin := buffer[i*3+1]
+			hsb := buffer[i*3+2]
+			lsb := buffer[i*3+3]
+			value := (int(hsb) << 8) | int(lsb)
+			fmt.Printf("✅ Pin: %d, Value: %d\n", pin, value)
 		}
 
-		fmt.Println("👋 Done!")
+		// REGULAR PIN DATA OUTPUT
+		// buffer := make([]byte, 1024)
+		// readValue, err := targetChar.Read(buffer)
+		// if err != nil {
+		// 	fmt.Printf("❌ Failed to read: %v\n", err)
+		// 	os.Exit(1)
+		// }
+		// fmt.Printf("✅ Read value: %v\n", readValue)
+		// fmt.Printf("✅ Read value: %v\n", buffer[:readValue])
+		// numPins := buffer[0]
+		// for i := 0; i < int(numPins); i++ {
+		// 	pin := buffer[i*2+1]
+		// 	value := buffer[i*2+2]
+		// 	fmt.Printf("✅ Pin: %d, Value: %d\n", pin, value)
+		// }
+
+		// WRIITNG
+		// Write "hello" to the characteristic
+		// fmt.Println("✍️  Writing \"hello\" to characteristic...\n")
+
+		// message := []byte("{\"pin_writes\": [{\"pin_num\": 14, \"state\": 100}]}")
+		// fmt.Println(len(message))
+		// _, err = writeCharacteristic(targetChar, message)
+		// if err != nil {
+		// 	fmt.Printf("❌ Failed to write: %v\n", err)
+		// 	device.Disconnect()
+		// 	os.Exit(1)
+		// }
+		// fmt.Printf("✅ Wrote: \"hello\" (%v)\n", message)
+		// fmt.Println("🔌 Disconnecting...")
+
+		// err = device.Disconnect()
+		// if err != nil {
+		// 	fmt.Printf("⚠️  Disconnect warning: %v\n", err)
+		// }
+
+		// fmt.Println("👋 Done!")
 
 	case <-timeout:
 		adapter.StopScan()

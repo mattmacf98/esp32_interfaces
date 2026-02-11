@@ -29,18 +29,6 @@ struct PinWriteItem {
     state: u8,
 }
 
-// #[derive(serde::Serialize)]
-// struct PinReadItem {
-//     pin_num: u8,
-//     state: i32,
-// }
-
-// #[derive(serde::Serialize)]
-// struct PinReadResponse {
-//     pin_reads: Vec<PinReadItem>,
-//     success: bool,
-// }
-
 // GATT Server definition
 #[gatt_server]
 struct Server {
@@ -52,6 +40,9 @@ struct Server {
 struct PinService {
     #[characteristic(uuid = "13c0ef83-09bd-4767-97cb-ee46224ae6db", read)]
     pin_data_output: [u8; 32],
+
+    #[characteristic(uuid = "01037594-1bbb-4490-aa4d-f6d333b42e16", read)]
+    adc_data_output: [u8; 32],
 
     #[characteristic(uuid = "c79b2ca7-f39d-4060-8168-816fa26737b7", read, write)]
     pin_data_input: [u8; 32],
@@ -139,6 +130,7 @@ async fn gatt_events_task<P: PacketPool>(
 ) -> Result<(), Error> {
     let pin_data_output = server.pin_service.pin_data_output;
     let pin_data_input = server.pin_service.pin_data_input;
+    let adc_data_output = server.pin_service.adc_data_output;
     let reason = loop {
         match conn.next().await {
             GattConnectionEvent::Disconnected { reason } => break reason,
@@ -147,6 +139,11 @@ async fn gatt_events_task<P: PacketPool>(
                 match &event {
                     GattEvent::Read(event) => {
                         info!("[gatt] Read Event");
+                        info!("[gatt] Read Event handle: {:?}", event.handle());
+                        info!(
+                            "[gatt] pin_data_output handle: {:?}",
+                            pin_data_output.handle
+                        );
                         if event.handle() == pin_data_output.handle {
                             let value = server.get(&pin_data_output)?;
                             let value_bytes: &[u8] = value.as_ref();
@@ -160,6 +157,9 @@ async fn gatt_events_task<P: PacketPool>(
                                     defmt::Debug2Format(&value_bytes)
                                 ),
                             }
+                        } else if event.handle() == adc_data_output.handle {
+                            let _value = server.get(&adc_data_output)?;
+                            info!("[gatt] Read Event to ADC Data Output Characteristic");
                         }
                     }
                     GattEvent::Write(event) => {
@@ -257,11 +257,27 @@ async fn advertise<'values, 'server, C: Controller>(
 /// It will also read the RSSI value every 2 seconds.
 /// and will stop when the connection is closed by the central or an error occurs.
 async fn custom_task<C: Controller, P: PacketPool>(
-    _server: &Server<'_>,
+    server: &Server<'_>,
     conn: &GattConnection<'_, '_, P>,
     stack: &Stack<'_, C, P>,
 ) {
+    let pin_data_output = server.pin_service.pin_data_output;
     loop {
+        let mut data = [0u8; 32];
+        let demo_data: &[u8] = &[3u8, 14, 100, 26, 100, 25, 100];
+        info!("[custom_task] demo_data length: {:?}", demo_data.len());
+        data[..demo_data.len()].copy_from_slice(demo_data);
+        if pin_data_output.notify(conn, &data).await.is_ok() {
+            info!("[custom_task] Notified connected central of pin data output");
+        }
+
+        let adc_data_output = server.pin_service.adc_data_output;
+        let demo_adc_data: &[u8] = &[2u8, 35, 255, 0, 32, 0, 255];
+        data[..demo_adc_data.len()].copy_from_slice(demo_adc_data);
+        if adc_data_output.notify(conn, &data).await.is_ok() {
+            info!("[custom_task] Notified connected central of adc data output");
+        }
+
         // read RSSI (Received Signal Strength Indicator) of the connection.
         if let Ok(rssi) = conn.raw().rssi(stack).await {
             info!("[custom_task] RSSI: {:?}", rssi);
@@ -272,3 +288,6 @@ async fn custom_task<C: Controller, P: PacketPool>(
         Timer::after_secs(2).await;
     }
 }
+
+// BT format regular num_pins,pin,value,pin,value,... (max 15 pins for now)
+// BT format adc num_pins,pin,HighsigByte,LowsigByte,pin,... (max 10 pins for now)

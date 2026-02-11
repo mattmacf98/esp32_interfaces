@@ -82,8 +82,6 @@ async fn main(spawner: Spawner) -> ! {
     let adc_read_pin_nums = config.adc_read_pin_nums;
     let bluetooth_name = config.bluetooth_name;
 
-    // info!("Bluetooth name: {}", bluetooth_name);
-
     // Wrap peripherals in Option so we can take them once in the loop
     let mut gpio14 = Some(peripherals.GPIO14);
     let mut gpio26 = Some(peripherals.GPIO26);
