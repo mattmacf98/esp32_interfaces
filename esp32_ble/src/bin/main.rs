@@ -118,7 +118,7 @@ async fn main(spawner: Spawner) -> ! {
     // Basic read pins
     let mut basic_read_pins: Vec<BasicReadPinTaskItem> =
         Vec::with_capacity(basic_read_pin_nums.len());
-    for pin_num in basic_read_pin_nums {
+    for pin_num in basic_read_pin_nums.clone() {
         let pin = match pin_num {
             14 => gpio14.take().map(|p| Input::new(p, InputConfig::default())),
             26 => gpio26.take().map(|p| Input::new(p, InputConfig::default())),
@@ -232,7 +232,13 @@ async fn main(spawner: Spawner) -> ! {
         adc_config,
     ));
 
-    ble::run(ble_controller, &bluetooth_name, adc_read_pin_nums).await;
+    ble::run(
+        ble_controller,
+        &bluetooth_name,
+        adc_read_pin_nums,
+        basic_read_pin_nums,
+    )
+    .await;
 
     let mut loop_count = 0;
     loop {

@@ -51,8 +51,12 @@ struct PinService {
 
 /// Run the BLE stack.
 ///
-pub async fn run<C>(controller: C, bluetooth_name: &str, adc_read_pin_nums: Vec<u8>)
-where
+pub async fn run<C>(
+    controller: C,
+    bluetooth_name: &str,
+    adc_read_pin_nums: Vec<u8>,
+    basic_read_pin_nums: Vec<u8>,
+) where
     C: Controller,
 {
     // Using a fixed "random" address can be useful for testing. In real scenarios, one would
@@ -82,7 +86,13 @@ where
                 Ok(conn) => {
                     // set up tasks when the connection is established to a central, so they don't run when no one is connected.
                     let a = gatt_events_task(&server, &conn);
-                    let b = custom_task(&server, &conn, &stack, adc_read_pin_nums.clone());
+                    let b = custom_task(
+                        &server,
+                        &conn,
+                        &stack,
+                        adc_read_pin_nums.clone(),
+                        basic_read_pin_nums.clone(),
+                    );
                     // run until any task ends (usually because the connection has been closed),
                     // then return to advertising state.
                     select(a, b).await;
@@ -262,21 +272,34 @@ async fn custom_task<C: Controller, P: PacketPool>(
     conn: &GattConnection<'_, '_, P>,
     stack: &Stack<'_, C, P>,
     adc_read_pin_nums: Vec<u8>,
+    basic_read_pin_nums: Vec<u8>,
 ) {
     let pin_data_output = server.pin_service.pin_data_output;
     loop {
         let mut data = [0u8; 32];
-        let demo_data: &[u8] = &[3u8, 14, 100, 26, 100, 25, 100];
-        info!("[custom_task] demo_data length: {:?}", demo_data.len());
-        data[..demo_data.len()].copy_from_slice(demo_data);
+        let num_basic_read_pins = basic_read_pin_nums.len();
+        let mut basic_read_pin_data: Vec<u8> = Vec::with_capacity(3 * num_basic_read_pins + 1);
+        basic_read_pin_data.push(num_basic_read_pins as u8);
+        for pin_num in basic_read_pin_nums.clone() {
+            let value = match pin_num {
+                14 => crate::pin::GPIO14_STATE.load(Ordering::Relaxed),
+                26 => crate::pin::GPIO26_STATE.load(Ordering::Relaxed),
+                25 => crate::pin::GPIO25_STATE.load(Ordering::Relaxed),
+                33 => crate::pin::GPIO33_STATE.load(Ordering::Relaxed),
+                _ => 0,
+            };
+            basic_read_pin_data.push(pin_num as u8);
+            basic_read_pin_data.push(value as u8);
+        }
+        data[..basic_read_pin_data.len()].copy_from_slice(basic_read_pin_data.as_slice());
         if pin_data_output.notify(conn, &data).await.is_ok() {
             info!("[custom_task] Notified connected central of pin data output");
         }
 
         let adc_data_output = server.pin_service.adc_data_output;
-        let num_pins = adc_read_pin_nums.len();
-        let mut demo_adc_data: Vec<u8> = Vec::with_capacity(3 * num_pins + 1);
-        demo_adc_data.push(num_pins as u8);
+        let num_adc_pins = adc_read_pin_nums.len();
+        let mut adc_pin_data: Vec<u8> = Vec::with_capacity(3 * num_adc_pins + 1);
+        adc_pin_data.push(num_adc_pins as u8);
         for pin_num in adc_read_pin_nums.clone() {
             let value = match pin_num {
                 35 => crate::pin::GPIO35_STATE.load(Ordering::Relaxed),
@@ -284,11 +307,11 @@ async fn custom_task<C: Controller, P: PacketPool>(
                 _ => 0,
             };
             let (high, low) = u32_to_u8_pair(value);
-            demo_adc_data.push(pin_num as u8);
-            demo_adc_data.push(high);
-            demo_adc_data.push(low);
+            adc_pin_data.push(pin_num as u8);
+            adc_pin_data.push(high);
+            adc_pin_data.push(low);
         }
-        data[..demo_adc_data.len()].copy_from_slice(demo_adc_data.as_slice());
+        data[..adc_pin_data.len()].copy_from_slice(adc_pin_data.as_slice());
         if adc_data_output.notify(conn, &data).await.is_ok() {
             info!("[custom_task] Notified connected central of adc data output");
         }
