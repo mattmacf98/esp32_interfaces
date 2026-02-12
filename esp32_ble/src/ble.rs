@@ -51,7 +51,7 @@ struct PinService {
 
 /// Run the BLE stack.
 ///
-pub async fn run<C>(controller: C, bluetooth_name: &str)
+pub async fn run<C>(controller: C, bluetooth_name: &str, adc_read_pin_nums: Vec<u8>)
 where
     C: Controller,
 {
@@ -82,7 +82,7 @@ where
                 Ok(conn) => {
                     // set up tasks when the connection is established to a central, so they don't run when no one is connected.
                     let a = gatt_events_task(&server, &conn);
-                    let b = custom_task(&server, &conn, &stack);
+                    let b = custom_task(&server, &conn, &stack, adc_read_pin_nums.clone());
                     // run until any task ends (usually because the connection has been closed),
                     // then return to advertising state.
                     select(a, b).await;
@@ -261,6 +261,7 @@ async fn custom_task<C: Controller, P: PacketPool>(
     server: &Server<'_>,
     conn: &GattConnection<'_, '_, P>,
     stack: &Stack<'_, C, P>,
+    adc_read_pin_nums: Vec<u8>,
 ) {
     let pin_data_output = server.pin_service.pin_data_output;
     loop {
@@ -273,10 +274,10 @@ async fn custom_task<C: Controller, P: PacketPool>(
         }
 
         let adc_data_output = server.pin_service.adc_data_output;
-        let adc_pin_nums = [35, 32];
-        let mut demo_adc_data: Vec<u8> = Vec::with_capacity(3 * adc_pin_nums.len() + 1);
-        demo_adc_data.push(adc_pin_nums.len() as u8);
-        for pin_num in adc_pin_nums {
+        let num_pins = adc_read_pin_nums.len();
+        let mut demo_adc_data: Vec<u8> = Vec::with_capacity(3 * num_pins + 1);
+        demo_adc_data.push(num_pins as u8);
+        for pin_num in adc_read_pin_nums.clone() {
             let value = match pin_num {
                 35 => crate::pin::GPIO35_STATE.load(Ordering::Relaxed),
                 32 => crate::pin::GPIO32_STATE.load(Ordering::Relaxed),

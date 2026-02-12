@@ -191,7 +191,7 @@ async fn main(spawner: Spawner) -> ! {
 
     let mut adc_config = AdcConfig::new();
     let mut adc_read_pins: Vec<AdcReadPinTaskItem> = Vec::with_capacity(adc_read_pin_nums.len());
-    for pin_num in adc_read_pin_nums {
+    for pin_num in adc_read_pin_nums.clone() {
         let pin = match pin_num {
             32 => gpio32.take().map(|p| {
                 let adc_pin = adc_config.enable_pin(p, Attenuation::_11dB);
@@ -232,7 +232,7 @@ async fn main(spawner: Spawner) -> ! {
         adc_config,
     ));
 
-    ble::run(ble_controller, &bluetooth_name).await;
+    ble::run(ble_controller, &bluetooth_name, adc_read_pin_nums).await;
 
     let mut loop_count = 0;
     loop {
