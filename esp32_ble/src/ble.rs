@@ -5,7 +5,8 @@ use defmt::{info, warn};
 use embassy_futures::join::join;
 use embassy_futures::select::select;
 
-use heapless::Vec;
+extern crate alloc;
+use alloc::vec::Vec;
 
 use embassy_time::Timer;
 
@@ -20,7 +21,7 @@ const L2CAP_CHANNELS_MAX: usize = 1;
 
 #[derive(serde::Deserialize)]
 struct PinRequest {
-    pin_writes: Vec<PinWriteItem, 8>, // Fixed capacity of 8 pin writes max
+    pin_writes: Vec<PinWriteItem>, // Fixed capacity of 8 pin writes max
 }
 
 #[derive(serde::Deserialize)]
@@ -188,13 +189,13 @@ async fn gatt_events_task<P: PacketPool>(
                                 info!("Writing pin state {:?}", pin_write.state);
                                 match pin_write.pin_num {
                                     14 => crate::pin::GPIO14_STATE
-                                        .store(pin_write.state as i32, Ordering::Relaxed),
+                                        .store(pin_write.state as u32, Ordering::Relaxed),
                                     26 => crate::pin::GPIO26_STATE
-                                        .store(pin_write.state as i32, Ordering::Relaxed),
+                                        .store(pin_write.state as u32, Ordering::Relaxed),
                                     25 => crate::pin::GPIO25_STATE
-                                        .store(pin_write.state as i32, Ordering::Relaxed),
+                                        .store(pin_write.state as u32, Ordering::Relaxed),
                                     33 => crate::pin::GPIO33_STATE
-                                        .store(pin_write.state as i32, Ordering::Relaxed),
+                                        .store(pin_write.state as u32, Ordering::Relaxed),
                                     _ => {}
                                 }
                             });
@@ -272,8 +273,21 @@ async fn custom_task<C: Controller, P: PacketPool>(
         }
 
         let adc_data_output = server.pin_service.adc_data_output;
-        let demo_adc_data: &[u8] = &[2u8, 35, 255, 0, 32, 0, 255];
-        data[..demo_adc_data.len()].copy_from_slice(demo_adc_data);
+        let adc_pin_nums = [35, 32];
+        let mut demo_adc_data: Vec<u8> = Vec::with_capacity(3 * adc_pin_nums.len() + 1);
+        demo_adc_data.push(adc_pin_nums.len() as u8);
+        for pin_num in adc_pin_nums {
+            let value = match pin_num {
+                35 => crate::pin::GPIO35_STATE.load(Ordering::Relaxed),
+                32 => crate::pin::GPIO32_STATE.load(Ordering::Relaxed),
+                _ => 0,
+            };
+            let (high, low) = u32_to_u8_pair(value);
+            demo_adc_data.push(pin_num as u8);
+            demo_adc_data.push(high);
+            demo_adc_data.push(low);
+        }
+        data[..demo_adc_data.len()].copy_from_slice(demo_adc_data.as_slice());
         if adc_data_output.notify(conn, &data).await.is_ok() {
             info!("[custom_task] Notified connected central of adc data output");
         }
@@ -287,6 +301,12 @@ async fn custom_task<C: Controller, P: PacketPool>(
         };
         Timer::after_secs(2).await;
     }
+}
+
+fn u32_to_u8_pair(value: u32) -> (u8, u8) {
+    let high = (value >> 8) as u8;
+    let low = value as u8;
+    (high, low)
 }
 
 // BT format regular num_pins,pin,value,pin,value,... (max 15 pins for now)

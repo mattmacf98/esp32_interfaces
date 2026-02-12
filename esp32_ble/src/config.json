@@ -3,5 +3,5 @@
     "basic_write_pin_nums": [14],
     "pwm_write_pin_nums": [],
     "basic_read_pin_nums": [],
-    "adc_read_pin_nums": []
+    "adc_read_pin_nums": [32,35]
 }

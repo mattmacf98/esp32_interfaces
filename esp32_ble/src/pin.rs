@@ -1,4 +1,4 @@
-use core::sync::atomic::AtomicI32;
+use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
 
 use embassy_time::Duration;
@@ -15,12 +15,12 @@ use esp_hal::peripherals::ADC1;
 use esp_hal::peripherals::GPIO32;
 use esp_hal::peripherals::GPIO35;
 
-pub static GPIO14_STATE: AtomicI32 = AtomicI32::new(0);
-pub static GPIO26_STATE: AtomicI32 = AtomicI32::new(0);
-pub static GPIO25_STATE: AtomicI32 = AtomicI32::new(0);
-pub static GPIO32_STATE: AtomicI32 = AtomicI32::new(0);
-pub static GPIO35_STATE: AtomicI32 = AtomicI32::new(0);
-pub static GPIO33_STATE: AtomicI32 = AtomicI32::new(0);
+pub static GPIO14_STATE: AtomicU32 = AtomicU32::new(0);
+pub static GPIO26_STATE: AtomicU32 = AtomicU32::new(0);
+pub static GPIO25_STATE: AtomicU32 = AtomicU32::new(0);
+pub static GPIO32_STATE: AtomicU32 = AtomicU32::new(0);
+pub static GPIO35_STATE: AtomicU32 = AtomicU32::new(0);
+pub static GPIO33_STATE: AtomicU32 = AtomicU32::new(0);
 pub struct BasicWritePinTaskItem {
     pub pin_num: u8,
     pub pin: Output<'static>,
@@ -129,7 +129,7 @@ pub async fn adc_read_pin_task(
                         };
                         // Put the pin back so it can be used in the next cycle
                         item.gpio35 = Some(gpio35);
-                        value as i32
+                        value as u32
                     } else {
                         0
                     }
@@ -144,7 +144,7 @@ pub async fn adc_read_pin_task(
                         };
                         // Put the pin back so it can be used in the next cycle
                         item.gpio32 = Some(gpio32);
-                        value as i32
+                        value as u32
                     } else {
                         0
                     }
